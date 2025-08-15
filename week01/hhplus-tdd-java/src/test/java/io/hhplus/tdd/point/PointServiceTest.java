@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,26 +28,49 @@ class PointServiceTest {
     @InjectMocks
     private PointServiceImpl pointService;
 
+    /**
+     * 사용자는 양수의 id를 가지고 있다.
+     */
+    @ParameterizedTest
+    @ValueSource(longs = {0L, -1L, -100L})
+    void point_userId는_양수가_아니면_예외를_반환한다(long userId) {
+        // when & then
+        assertThrows(InvalidUserIdException.class,
+            () -> pointService.point(userId));
+
+        verifyNoInteractions(userPointTable, pointHistoryTable);
+    }
+
+    /**
+     * 포인트 조회 시 포인트 테이블의 메서드를 호출한다.
+     */
     @Test
-    void point_포인트_조회_시_포인트_테이블을_한_번_호출() {
+    void point_포인트_조회를_포인트_테이블에_위임한다() {
         // given
         long userId = 1L;
-        UserPoint expected = new UserPoint(userId, 100L, System.currentTimeMillis());
+        long amount = 100L;
+        UserPoint expected = new UserPoint(userId, amount, System.currentTimeMillis());
         when(userPointTable.selectById(userId)).thenReturn(expected);
 
         // when
         UserPoint result = pointService.point(userId);
 
         // then
-        assertThat(result).isSameAs(expected);
-        verify(userPointTable, times(1)).selectById(userId);
+        assertThat(result.id()).isEqualTo(expected.id());
+        assertThat(result.point()).isEqualTo(expected.point());
+        assertThat(result.updateMillis()).isPositive();
+
+        verify(userPointTable).selectById(userId);
         verifyNoMoreInteractions(userPointTable);
     }
 
+    /**
+     * 존재하지 않는 유저가 포인트를 조회하면 UserPoint.empty 값이 반환된다.
+     */
     @Test
     void point_존재하지_않는_사용자는_empty_반환() {
         // given
-        long userId = 999L;
+        long userId = Long.MAX_VALUE;
         when(userPointTable.selectById(userId)).thenReturn(UserPoint.empty(userId));
 
         // when
@@ -57,36 +79,31 @@ class PointServiceTest {
         // then
         assertThat(result.id()).isEqualTo(userId);
         assertThat(result.point()).isEqualTo(0L);
+        assertThat(result.updateMillis()).isPositive();
     }
 
     /**
-     * userId는 1부터 long 최대값까지 사용할 수 있다.
+     * userId로 0 이하의 숫자가 요청되면 예외를 반환한다.
      */
     @ParameterizedTest
     @ValueSource(longs = {0L, -1L, -100L})
     void charge_userId는_양수가_아니면_예외를_반환한다(long userId) {
-        // given
-        long amount = 1000L;
-
         // when & then
         assertThrows(InvalidUserIdException.class,
-            () -> pointService.charge(userId, amount));
+            () -> pointService.charge(userId, 1000L));
 
         verifyNoInteractions(userPointTable, pointHistoryTable);
     }
 
     /**
-     * 양수의 값만 충전할 수 있다.
+     * 충전 금액으로 0 이하의 숫자가 요청되면 예외를 반환한다.
      */
     @ParameterizedTest
     @ValueSource(longs = {0L, -1L, -100L})
     void charge_amount는_양수가_아니면_예외를_반환한다(long amount) {
-        // given
-        long userId = 1L;
-
         // when & then
         assertThrows(InvalidAmountException.class,
-            () -> pointService.charge(userId, amount));
+            () -> pointService.charge(1L, amount));
 
         verifyNoInteractions(userPointTable, pointHistoryTable);
     }
@@ -141,7 +158,7 @@ class PointServiceTest {
 
         // then
         verify(userPointTable).selectById(userId);
-        verify(userPointTable).insertOrUpdate(userId, anyLong());
+        verify(userPointTable).insertOrUpdate(eq(userId), anyLong());
         verify(pointHistoryTable).insert(userId, amount, TransactionType.CHARGE, currentTimestamp);
     }
 }
