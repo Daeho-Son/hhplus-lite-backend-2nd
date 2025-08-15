@@ -1,5 +1,6 @@
 package io.hhplus.tdd;
 
+import io.hhplus.tdd.exception.InvalidAmountException;
 import io.hhplus.tdd.exception.InvalidUserIdException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +17,12 @@ class ApiControllerAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(value = InvalidUserIdException.class)
     public ResponseEntity<ErrorResponse> handleInvalidUserIdException(InvalidUserIdException e) {
+        log.error("Exception Occurred: {}", e.getMessage());
+        return ResponseEntity.status(400).body(new ErrorResponse("400", e.getMessage()));
+    }
+
+    @ExceptionHandler(value = InvalidAmountException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidAmountException(InvalidAmountException e) {
         log.error("Exception Occurred: {}", e.getMessage());
         return ResponseEntity.status(400).body(new ErrorResponse("400", e.getMessage()));
     }
