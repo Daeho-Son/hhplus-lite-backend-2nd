@@ -6,6 +6,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -114,30 +117,41 @@ class PointControllerTest {
     }
 
     /**
-     * 요청받은 사용자의 포인트를 충전한다.
+     * - 컨트롤러의 비즈니스 로직은 service에서 수행되며, 응답 시 `json`을 반환한다.
+     * - 요청과 응답의 Content-Type은 `application/json`이다.
      */
     @Test
-    void 요청받은_사용자의_포인트를_충전한다() throws Exception {
-        // given
+    void history_요청을_service로_위임하고_json을_반환한다() throws Exception {
         long userId = 1L;
-        long amount = 1000L;
-        when(pointService.charge(userId, amount))
-            .thenReturn(new UserPoint(userId, amount, System.currentTimeMillis()));
 
-        // when & then
-        mockMvc.perform(
-                patch("/point/1/charge")
-                    .contentType("application/json")
-                    .content(String.valueOf(amount))
-            )
+        List<PointHistory> histories = List.of(new PointHistory(1L, userId, 100L, TransactionType.CHARGE, System.currentTimeMillis()));
+        when(pointService.history(userId)).thenReturn(histories);
+
+        mockMvc
+            .perform(get("/point/{userId}/histories", userId))
             .andExpect(status().isOk())
             .andExpect(content().contentType("application/json"))
-            .andExpect(jsonPath("$.id").value(userId))
-            .andExpect(jsonPath("$.point").exists())
-            .andExpect(jsonPath("$.updateMillis").exists());
+            .andExpect(jsonPath("$", hasSize(histories.size())))
+            .andExpect(jsonPath("$[0].id").value(userId))
+            .andExpect(jsonPath("$[0].amount").exists())
+            .andExpect(jsonPath("$[0].type").value(TransactionType.CHARGE.name()))
+            .andExpect(jsonPath("$[0].updateMillis").exists());
 
-        verify(pointService).charge(userId, amount);
+        verify(pointService).history(userId);
         verifyNoMoreInteractions(pointService);
     }
 
+    /**
+     * userId는 양수값만 올 수 없다.
+     */
+    @Test
+    void history_userId에_양수가_아닌_값이_요청되면_예외를_반환한다() throws Exception {
+        mockMvc.perform(get("/point/{}/histories", "abc"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").exists())
+            .andExpect(jsonPath("$.message").exists());
+
+        verifyNoInteractions(pointService);
+
+    }
 }

@@ -4,6 +4,7 @@ import io.hhplus.tdd.database.PointHistoryTable;
 import io.hhplus.tdd.database.UserPointTable;
 import io.hhplus.tdd.exception.InvalidAmountException;
 import io.hhplus.tdd.exception.InvalidUserIdException;
+import org.apache.catalina.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,6 +12,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -160,5 +163,82 @@ class PointServiceTest {
         verify(userPointTable).selectById(userId);
         verify(userPointTable).insertOrUpdate(eq(userId), anyLong());
         verify(pointHistoryTable).insert(userId, amount, TransactionType.CHARGE, currentTimestamp);
+    }
+
+    /**
+     * 단위테스트
+     * userId가 양수가 아니면 예외를 반환한다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "-100"})
+    void history_userId가_양수가_아니면_예외를_반환한다(long userId) {
+        assertThrows(InvalidUserIdException.class,
+            () -> pointService.history(userId));
+
+        verifyNoInteractions(pointHistoryTable);
+    }
+
+    /**
+     * 단위테스트
+     * 정상적인 요청인 경우, PointHistoryTable로 위임한다.
+     */
+    @ParameterizedTest
+    @ValueSource(longs = {1L, 100L, Long.MAX_VALUE})
+    void history_정상적인_요청은_PointHistoryTable로_위임한다(long userId) {
+        when(pointHistoryTable.selectAllByUserId(userId))
+            .thenReturn(List.of());
+
+        pointService.history(userId);
+        verify(pointHistoryTable).selectAllByUserId(userId);
+        verifyNoMoreInteractions(pointHistoryTable);
+    }
+
+    /**
+     * 통합테스트
+     * 결과가 없으면 빈 리스트를 반환한다.
+     */
+    @Test
+    void history_결과가_없으면_빈_리스트를_반환한다() {
+        // given
+        UserPointTable userPointTable = new UserPointTable();
+        PointHistoryTable pointHistoryTable = new PointHistoryTable();
+        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
+
+        long userId = 1L;
+
+        // when
+        List<PointHistory> histories = pointService.history(userId);
+
+        // then
+        assertThat(histories).isEmpty();
+    }
+
+    /**
+     * 통합테스트
+     * 조회 결과가 여러 건이 있으면 여러 건이 담긴 배열을 반환한다.
+     */
+    @Test
+    void history_여러_건이_있으면_여러_건이_담긴_배열을_반환한다() {
+        // given
+        UserPointTable userPointTable = new UserPointTable();
+        PointHistoryTable pointHistoryTable = new PointHistoryTable();
+        PointService pointService = new PointServiceImpl(userPointTable, pointHistoryTable);
+
+        long userId = 1L;
+        pointService.charge(userId, 100L);
+        pointService.charge(userId, 200L);
+        pointService.charge(userId, 200L);
+
+        // when
+        List<PointHistory> result = pointService.history(userId);
+        
+        // then
+        assertThat(result).hasSize(3);
+        for (PointHistory history : result) {
+            assertThat(history.userId()).isEqualTo(userId);
+        }
+        assertThat(result.get(0).amount()).isEqualTo(100L);
+        assertThat(result.get(1).amount()).isEqualTo(200L);
+        assertThat(result.get(2).amount()).isEqualTo(200L);
     }
 }

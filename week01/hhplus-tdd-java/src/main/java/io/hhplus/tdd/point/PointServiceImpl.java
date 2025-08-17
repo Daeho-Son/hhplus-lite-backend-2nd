@@ -6,6 +6,8 @@ import io.hhplus.tdd.exception.InvalidAmountException;
 import io.hhplus.tdd.exception.InvalidUserIdException;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class PointServiceImpl implements PointService {
 
@@ -23,6 +25,14 @@ public class PointServiceImpl implements PointService {
             throw new InvalidUserIdException("잘못된 사용자 ID입니다.");
         }
         return userPointTable.selectById(userId);
+    }
+
+    @Override
+    public List<PointHistory> history(long userId) {
+        if (userId <= 0) {
+            throw new InvalidUserIdException("잘못된 사용자 ID입니다.");
+        }
+        return pointHistoryTable.selectAllByUserId(userId);
     }
 
     @Override
