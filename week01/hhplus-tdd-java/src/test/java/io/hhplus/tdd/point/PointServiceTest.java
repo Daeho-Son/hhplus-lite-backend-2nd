@@ -2,6 +2,7 @@ package io.hhplus.tdd.point;
 
 import io.hhplus.tdd.database.PointHistoryTable;
 import io.hhplus.tdd.database.UserPointTable;
+import io.hhplus.tdd.exception.InsufficientPointException;
 import io.hhplus.tdd.exception.InvalidAmountException;
 import io.hhplus.tdd.exception.InvalidUserIdException;
 import org.apache.catalina.User;
@@ -241,4 +242,125 @@ class PointServiceTest {
         assertThat(result.get(1).amount()).isEqualTo(200L);
         assertThat(result.get(2).amount()).isEqualTo(200L);
     }
+
+    /**
+     * userId가 양수가 아니면 예외를 반환한다.
+     */
+    @ParameterizedTest
+    @ValueSource(longs = {0L, -1L, -100L})
+    void use_userId가_양수가_아니면_예외를_반환한다(long userId) {
+        assertThrows(InvalidUserIdException.class,
+            () -> pointService.use(userId, 100L));
+
+        verifyNoInteractions(userPointTable);
+        verifyNoInteractions(pointHistoryTable);
+    }
+
+    /**
+     * amount가 양수가 아니면 예외를 반환한다.
+     */
+    @ParameterizedTest
+    @ValueSource(longs = {0L, -1L, -100L})
+    void use_amount가_양수가_아니면_예외를_반환한다(long amount) {
+        assertThrows(InvalidAmountException.class,
+            () -> pointService.use(1L, amount));
+
+        verifyNoInteractions(userPointTable);
+        verifyNoInteractions(pointHistoryTable);
+    }
+
+    /**
+     * 정상적인 요청은 UserPointTable와 PointHistory에 위임한다.
+     */
+    @Test
+    void use_정상적인_요청은_UserPointTable와_PointHistoryTable에_위임한다() {
+        // given
+        long userId = 1L;
+        long amount = 100L;
+        when(userPointTable.selectById(userId))
+            .thenReturn(new UserPoint(userId, 1000L, System.currentTimeMillis()));
+
+        // when
+        pointService.use(userId, amount);
+
+        // then
+        verify(userPointTable).selectById(userId);
+        verify(userPointTable).insertOrUpdate(eq(userId), anyLong());
+        verify(pointHistoryTable).insert(eq(userId), eq(amount), eq(TransactionType.USE), anyLong());
+        verifyNoMoreInteractions(userPointTable, pointHistoryTable);
+    }
+
+
+    /**
+     * 포인트가 부족하면 포인트를 사용할 수 없다.
+     */
+    @Test
+    void use_포인트가_부족하면_예외를_반환한다() {
+        // given
+        long userId = 1L;
+
+        when(userPointTable.selectById(userId))
+            .thenReturn(new UserPoint(userId, 0L, System.currentTimeMillis()));
+
+        // when & then
+        assertThrows(InsufficientPointException.class,
+            () -> pointService.use(userId, 1000L));
+
+        verify(userPointTable).selectById(userId);
+        verifyNoMoreInteractions(userPointTable);
+        verifyNoMoreInteractions(pointHistoryTable);
+    }
+
+    /**
+     * 포인트를 사용하면 포인트가 차감된다.
+     */
+    @Test
+    void use_포인트를_사용하면_포인트가_차감된다() {
+        long userId = 1L;
+        long initAmount = 1000L;
+        long amount = 100L;
+        when(userPointTable.selectById(userId))
+            .thenReturn(new UserPoint(userId, initAmount, System.currentTimeMillis()));
+
+        when(userPointTable.insertOrUpdate(anyLong(), anyLong()))
+            .thenAnswer(inv -> new UserPoint(inv.getArgument(0), inv.getArgument(1), System.currentTimeMillis()));
+
+        UserPoint result = pointService.use(userId, amount);
+
+        assertThat(result.id()).isEqualTo(userId);
+        assertThat(result.point()).isEqualTo(initAmount - amount);
+        assertThat(result.updateMillis()).isPositive();
+
+        verify(userPointTable).selectById(userId);
+        verify(userPointTable).insertOrUpdate(eq(userId), eq(initAmount - amount));
+        verify(pointHistoryTable).insert(eq(userId), eq(amount), eq(TransactionType.USE), anyLong());
+        verifyNoMoreInteractions(userPointTable, pointHistoryTable);
+    }
+
+
+    /**
+     * 포인트 사용 시, 사용 내역을 생성한다.
+     */
+    @Test
+    void use_포인트_사용_내역을_생성한다() {
+        // given
+        long userId = 1L;
+        long amount = 100L;
+        long currentTimestamp = 123456789L;
+        UserPoint initial = new UserPoint(userId, 1000L, currentTimestamp);
+        when(userPointTable.selectById(userId))
+            .thenReturn(initial);
+        when(userPointTable.insertOrUpdate(anyLong(), anyLong()))
+            .thenReturn(new UserPoint(userId, 900L, currentTimestamp));
+
+        // when
+        pointService.use(userId, amount);
+
+        // then
+        verify(pointHistoryTable).insert(userId, amount, TransactionType.USE, currentTimestamp);
+        verify(userPointTable).selectById(userId);
+        verify(userPointTable).insertOrUpdate(userId, 900L);
+        verifyNoMoreInteractions(pointHistoryTable, userPointTable);
+    }
+
 }

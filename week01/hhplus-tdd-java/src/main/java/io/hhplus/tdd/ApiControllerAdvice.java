@@ -1,5 +1,6 @@
 package io.hhplus.tdd;
 
+import io.hhplus.tdd.exception.InsufficientPointException;
 import io.hhplus.tdd.exception.InvalidAmountException;
 import io.hhplus.tdd.exception.InvalidUserIdException;
 import org.slf4j.Logger;
@@ -14,6 +15,12 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 class ApiControllerAdvice extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiControllerAdvice.class);
+
+    @ExceptionHandler(value = InsufficientPointException.class)
+    public ResponseEntity<ErrorResponse> handleInsufficientPointException(InsufficientPointException e) {
+        log.error("Exception Occurred: {}", e.getMessage());
+        return ResponseEntity.status(400).body(new ErrorResponse("400", e.getMessage()));
+    }
 
     @ExceptionHandler(value = InvalidUserIdException.class)
     public ResponseEntity<ErrorResponse> handleInvalidUserIdException(InvalidUserIdException e) {

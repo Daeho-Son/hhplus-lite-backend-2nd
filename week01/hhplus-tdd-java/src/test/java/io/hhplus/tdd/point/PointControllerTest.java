@@ -154,4 +154,61 @@ class PointControllerTest {
         verifyNoInteractions(pointService);
 
     }
+
+    /**
+     * - 컨트롤러의 비즈니스 로직은 service에서 수행되며, 응답 시 `json`을 반환한다.
+     * - 요청과 응답의 Content-Type은 `application/json`이다.
+     */
+    @Test
+    void use_요청을_service로_위임하고_json을_반환한다() throws Exception {
+        long userId = 1L;
+        long amount = 100L;
+        UserPoint userPoint = new UserPoint(userId, 100L, System.currentTimeMillis());
+        when(pointService.use(userId, amount)).thenReturn(userPoint);
+
+        mockMvc
+            .perform(patch("/point/{userId}/use", userId)
+                .contentType("application/json")
+                .content(String.valueOf(amount)))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("application/json"))
+            .andExpect(jsonPath("$.id").value(userId))
+            .andExpect(jsonPath("$.point").exists())
+            .andExpect(jsonPath("$.updateMillis").exists());
+
+        verify(pointService).use(userId, amount);
+        verifyNoMoreInteractions(pointService);
+    }
+
+    /**
+     * userId는 양수값만 올 수 없다.
+     */
+    @Test
+    void use_userId에_양수가_아닌_값이_요청되면_예외를_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(patch("/point/{}/use", "abc")
+                .contentType("application/json")
+                .content(String.valueOf(100L)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").exists())
+            .andExpect(jsonPath("$.message").exists());
+
+        verifyNoInteractions(pointService);
+    }
+
+    /**
+     * amount는 양수값만 올 수 없다.
+     */
+    @Test
+    void use_amount에_양수가_아닌_값이_요청되면_예외를_반환한다() throws Exception {
+        // when & then
+        mockMvc.perform(patch("/point/{}/use", 1L)
+                .contentType("application/json")
+                .content(String.valueOf("abc")))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").exists())
+            .andExpect(jsonPath("$.message").exists());
+
+        verifyNoInteractions(pointService);
+    }
 }
