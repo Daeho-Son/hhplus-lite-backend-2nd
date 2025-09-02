@@ -152,7 +152,20 @@ X-Queue-Token: {queueToken}
 
 ## Response
 ```text
-
+{
+    paymentId: string,
+    reservationId: string,
+    concertId: string,
+    concertDateId: string,
+    seat: {
+        section: string, // 예: "A"
+        number: number // 예: 12
+    },
+    amount: number,
+    paymentStatus: "CAPTURED",
+    paidAt: datetime,
+    queueTokenExpired: true
+}
 ```
 
 ---
