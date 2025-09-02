@@ -1,6 +1,7 @@
-# 인가/인증 토큰 발급
+# 토큰 발급
 ## 설명
-- 로그인 및 API 요청을 위한 토큰을 발급받는다.
+- API 요청을 위한 토큰을 발급받는다.
+- queueToken의 역할을 함께 수행한다.
 - 특정 API를 제외한 모든 API 요청할 때는 Authorization 헤더에 Bearer 타입으로 토큰을 담아서 요청해야한다.
 - 토큰을 포함하지 않아도 되는 API는 아래와 같다.
   - 로그인
@@ -8,6 +9,9 @@
   - 대기열 상태 폴링
   - 헬스체크
 - 인증/인가 토큰은 jwt로 구성되어 있다.
+- 토큰에는 아래의 정보가 포함되어 있다.
+  - 사용자 식별번호
+  - 대기열 정보
 
 ## Request
 ```text
@@ -25,27 +29,6 @@ Content-Type: application/json
 ```
 
 ---
-# 대기열 토큰 발급
-## 설명
-- 트래픽이 많이 몰릴 수 있는 API에 대기열 기능을 적용하기 위한 토큰이다.
-- API 요청할 때, X-Queue-Token 헤더에 포함해서 요청한다. 
-
-## Request
-```text
-POST /queue/token
-Authorization: Bearer {accessToken}
-```
-
-## Response
-```text
-Content-Type: application/json
-
-{
-    queueToken: string
-}
-```
-
----
 # 예약 가능 날짜
 ## 설명
 - 특정 콘서트의 예약 가능한 날짜를 조회한다.
@@ -56,7 +39,6 @@ Content-Type: application/json
 ```text
 GET /reservation/date
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
 ```
 
 ## Response
@@ -82,7 +64,6 @@ Content-Type: application/json
 ```text
 GET /reservation/seat
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
 
 {
     concertId: string,
@@ -119,7 +100,6 @@ Content-Type: application/json
 ```text
 POST /reservation
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
 
 {
     concertId: string,
@@ -147,7 +127,6 @@ Content-Type: application/json
 ```text
 POST /payment
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
 ```
 
 ## Response
@@ -174,12 +153,20 @@ X-Queue-Token: {queueToken}
 ```text
 
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
+
+{
+    userId: string,
+    amount: number,
+}
 ```
 
 ## Response
 ```text
-
+{
+    walletId: string,
+    amount: number, // 이번에 충전된 금액
+    balance: number, // 충전 후 잔액
+}
 ```
 
 ---
@@ -188,10 +175,13 @@ X-Queue-Token: {queueToken}
 ```text
 
 Authorization: Bearer {accessToken}
-X-Queue-Token: {queueToken}
 ```
 
 ## Response
 ```text
+{
+    walletId: string,
+    balance: number,
+}
 
 ```
